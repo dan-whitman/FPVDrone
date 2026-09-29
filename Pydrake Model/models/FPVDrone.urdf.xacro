@@ -1,0 +1,380 @@
+<?xml version="1.0"?>
+<robot name="copter" xmlns:xacro="http://ros.org/wiki/xacro" xmlns:drake="http://mit.edu">
+
+  <!-- File Conventions
+    - mass (kg)
+    - length (m)
+    - inertia (kgm^2)
+    - 
+  -->
+
+  <!-- TO DO
+    - update dimensions
+    -
+  -->
+
+  <!-- #region Xacro Definitions -->
+  <xacro:property name="pi" value="3.141592653589793"/>
+  <xacro:property name="zero_origin" value = "0.0 0.0 0.0"/>
+  <xacro:property name="zero_rpy" value = "0.0 0.0 0.0"/> 
+
+  <xacro:property name="base_radius" value = "${0.15/2}"/>
+  <xacro:property name="base_length" value = "0.05"/>
+  <xacro:property name="base_origin" value = "${zero_origin}"/>
+  <xacro:property name="base_mass" value = "0.5"/>
+  <xacro:property name="base_ixx" value = "${(base_mass*base_radius**2)/4 + (base_mass*base_length**2)/12}"/>
+  <xacro:property name="base_iyy" value = "${(base_mass*base_radius**2)/4 + (base_mass*base_length**2)/12}"/>
+  <xacro:property name="base_izz" value = "${(base_mass*base_radius**2)/2}"/>
+  <xacro:property name="base_ixy" value = "0.0"/>
+  <xacro:property name="base_ixz" value = "0.0"/>
+  <xacro:property name="base_iyz" value = "0.0"/>
+
+  <xacro:property name="arm_xsize" value = "${base_length/2}"/>
+  <xacro:property name="arm_ysize" value = "${base_length/2}"/>
+  <xacro:property name="arm_zsize" value = "0.18"/>
+  <xacro:property name="arm_origin" value = "0.0 0.0 ${arm_zsize/2}"/>
+  <xacro:property name="arm_mass" value = "0.05"/>
+  <xacro:property name="arm_ixx" value = "${(arm_mass*(arm_ysize**2+arm_zsize**2))/12 + arm_mass*(arm_zsize/2)**2}"/>
+  <xacro:property name="arm_iyy" value = "${(arm_mass*(arm_xsize**2+arm_zsize**2))/12 + arm_mass*(arm_zsize/2)**2}"/>
+  <xacro:property name="arm_izz" value = "${(arm_mass*(arm_xsize**2+arm_ysize**2))/12}"/>
+  <xacro:property name="arm_ixy" value = "0.0"/>
+  <xacro:property name="arm_ixz" value = "0.0"/>
+  <xacro:property name="arm_iyz" value = "0.0"/>
+  <xacro:property name="arm_joint_zorigin" value = "${base_length/2-arm_ysize/2}"/>
+
+  <xacro:property name="prop_radius" value = "0.08"/>
+  <xacro:property name="prop_length" value = "0.01"/>
+  <xacro:property name="prop_origin" value = "0.0 0.0 ${prop_length/2}"/>
+  <xacro:property name="prop_mass" value = "0.001"/>
+  <xacro:property name="prop_ixx" value = "${(prop_mass*prop_radius**2)/4 + (prop_mass*prop_length**2)/3}"/>
+  <xacro:property name="prop_iyy" value = "${(prop_mass*prop_radius**2)/4 + (prop_mass*prop_length**2)/3}"/>
+  <xacro:property name="prop_izz" value = "${(prop_mass*prop_radius**2)/2}"/>
+  <xacro:property name="prop_ixy" value = "0.0"/>
+  <xacro:property name="prop_ixz" value = "0.0"/>
+  <xacro:property name="prop_iyz" value = "0.0"/>
+  <xacro:property name="prop_joint_origin" value = "0.0 ${-arm_ysize/2} ${arm_zsize}"/>
+  <xacro:property name="prop_joint_rpy" value = "${pi/2} 0.0 0.0"/>
+
+  <xacro:property name="camera_radius" value = "0.02"/>
+  <xacro:property name="camera_length" value = "0.01"/>
+  <xacro:property name="camera_origin" value = "0.0 0.0 ${-camera_length/2}"/>
+  <xacro:property name="camera_mass" value = "0.0"/>
+  <xacro:property name="camera_ixx" value = "${(camera_mass*camera_radius**2)/4 + (camera_mass*camera_length**2)/12}"/>
+  <xacro:property name="camera_iyy" value = "${(camera_mass*camera_radius**2)/4 + (camera_mass*camera_length**2)/12}"/>
+  <xacro:property name="camera_izz" value = "${(camera_mass*camera_radius**2)/2}"/>
+  <xacro:property name="camera_ixy" value = "0.0"/>
+  <xacro:property name="camera_ixz" value = "0.0"/>
+  <xacro:property name="camera_iyz" value = "0.0"/>
+  <xacro:property name="camera_joint_origin" value = "0.0 ${base_radius} 0.0"/>
+  <xacro:property name="camera_joint_rpy" value = "${-pi/2} 0.0 0.0"/>
+  <!-- #endregion -->
+
+  <!-- #region Material Definitions -->
+  <material name="gray">
+    <color rgba="0.5 0.5 0.5 1.0"/>
+  </material>
+  <material name="red">
+    <color rgba="0.8 0.0 0.0 1.0"/>
+  </material>
+  <material name="green">
+    <color rgba="0.0 0.8 0.0 1.0"/>
+  </material>
+  <material name="blue">
+    <color rgba="0.0 0.0 0.8 1.0"/>
+  </material>
+  <!-- #endregion -->
+
+  <!-- #region Copter Base -->
+  <link name="copter_base">
+    <inertial>
+      <origin xyz="${zero_origin}" rpy="${zero_rpy}"/>
+      <mass value="${base_mass}"/>
+      <inertia ixx="${base_ixx}" ixy="${base_ixy}" ixz="${base_ixz}" iyy="${base_iyy}" iyz="${base_iyz}" izz="${base_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="${zero_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <cylinder radius="${base_radius}" length="${base_length}"/>
+      </geometry>
+      <material name="red"/>
+    </visual>
+    <collision>
+      <origin xyz="${zero_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <cylinder radius="${base_radius}" length="${base_length}"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- #endregion -->
+
+  <!-- #region Copter Arms -->
+  <link name="copter_arm_1">
+    <inertial>
+      <origin xyz="${arm_origin}" rpy="${zero_rpy}"/>
+      <mass value="${arm_mass}"/>
+      <inertia ixx="${arm_ixx}" ixy="${arm_ixy}" ixz="${arm_ixz}" iyy="${arm_iyy}" iyz="${arm_iyz}" izz="${arm_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="${arm_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <box size="${arm_xsize} ${arm_ysize} ${arm_zsize}"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <origin xyz="${arm_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <box size="${arm_xsize} ${arm_ysize} ${arm_zsize}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="copter_arm_2">
+    <inertial>
+      <origin xyz="${arm_origin}" rpy="${zero_rpy}"/>
+      <mass value="${arm_mass}"/>
+      <inertia ixx="${arm_ixx}" ixy="${arm_ixy}" ixz="${arm_ixz}" iyy="${arm_iyy}" iyz="${arm_iyz}" izz="${arm_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="${arm_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <box size="${arm_xsize} ${arm_ysize} ${arm_zsize}"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <origin xyz="${arm_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <box size="${arm_xsize} ${arm_ysize} ${arm_zsize}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="copter_arm_3">
+    <inertial>
+      <origin xyz="${arm_origin}" rpy="${zero_rpy}"/>
+      <mass value="${arm_mass}"/>
+      <inertia ixx="${arm_ixx}" ixy="${arm_ixy}" ixz="${arm_ixz}" iyy="${arm_iyy}" iyz="${arm_iyz}" izz="${arm_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="${arm_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <box size="${arm_xsize} ${arm_ysize} ${arm_zsize}"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <origin xyz="${arm_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <box size="${arm_xsize} ${arm_ysize} ${arm_zsize}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="copter_arm_4">
+    <inertial>
+      <origin xyz="${arm_origin}" rpy="${zero_rpy}"/>
+      <mass value="${arm_mass}"/>
+      <inertia ixx="${arm_ixx}" ixy="${arm_ixy}" ixz="${arm_ixz}" iyy="${arm_iyy}" iyz="${arm_iyz}" izz="${arm_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="${arm_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <box size="${arm_xsize} ${arm_ysize} ${arm_zsize}"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <origin xyz="${arm_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <box size="${arm_xsize} ${arm_ysize} ${arm_zsize}"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- #endregion -->
+
+  <!-- #region Copter Props -->
+  <link name="copter_prop_1">
+    <inertial>
+      <origin xyz="${prop_origin}" rpy="${zero_rpy}"/>
+      <mass value="${prop_mass}"/>
+      <inertia ixx="${prop_ixx}" ixy="${prop_ixy}" ixz="${prop_ixz}" iyy="${prop_iyy}" iyz="${prop_iyz}" izz="${prop_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="${prop_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <cylinder radius="${prop_radius}" length="${prop_length}"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+    <collision>
+      <origin xyz="${prop_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <cylinder radius="${prop_radius}" length="${prop_length}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="copter_prop_2">
+    <inertial>
+      <origin xyz="${prop_origin}" rpy="${zero_rpy}"/>
+      <mass value="${prop_mass}"/>
+      <inertia ixx="${prop_ixx}" ixy="${prop_ixy}" ixz="${prop_ixz}" iyy="${prop_iyy}" iyz="${prop_iyz}" izz="${prop_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="${prop_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <cylinder radius="${prop_radius}" length="${prop_length}"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+    <collision>
+      <origin xyz="${prop_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <cylinder radius="${prop_radius}" length="${prop_length}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="copter_prop_3">
+    <inertial>
+      <origin xyz="${prop_origin}" rpy="${zero_rpy}"/>
+      <mass value="${prop_mass}"/>
+      <inertia ixx="${prop_ixx}" ixy="${prop_ixy}" ixz="${prop_ixz}" iyy="${prop_iyy}" iyz="${prop_iyz}" izz="${prop_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="${prop_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <cylinder radius="${prop_radius}" length="${prop_length}"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+    <collision>
+      <origin xyz="${prop_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <cylinder radius="${prop_radius}" length="${prop_length}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="copter_prop_4">
+    <inertial>
+      <origin xyz="${prop_origin}" rpy="${zero_rpy}"/>
+      <mass value="${prop_mass}"/>
+      <inertia ixx="${prop_ixx}" ixy="${prop_ixy}" ixz="${prop_ixz}" iyy="${prop_iyy}" iyz="${prop_iyz}" izz="${prop_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="${prop_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <cylinder radius="${prop_radius}" length="${prop_length}"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+    <collision>
+      <origin xyz="${prop_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <cylinder radius="${prop_radius}" length="${prop_length}"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- #endregion -->
+
+  <!-- #region Copter Camera -->
+   <link name="copter_camera">
+    <inertial>
+      <origin xyz="${camera_origin}" rpy="${zero_rpy}"/>
+      <mass value="${camera_mass}"/>
+      <inertia ixx="${camera_ixx}" ixy="${camera_ixy}" ixz="${camera_ixz}" iyy="${camera_iyy}" iyz="${camera_iyz}" izz="${camera_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="${camera_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <cylinder radius="${camera_radius}" length="${camera_length}"/>
+      </geometry>
+      <material name="green"/>
+    </visual>
+    <collision>
+      <origin xyz="${camera_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <cylinder radius="${camera_radius}" length="${camera_length}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- #region Arm Joints -->
+  <joint name="base_to_arm_1" type="fixed">
+    <parent link="copter_base"/>
+    <child link="copter_arm_1"/>
+    <origin xyz="${base_radius*cos(pi/4)} ${base_radius*sin(pi/4)} ${arm_joint_zorigin}" rpy="${-pi/2} 0.0 ${-pi/4+0*pi/2}"/>
+  </joint>
+
+  <joint name="base_to_arm_2" type="fixed">
+    <parent link="copter_base"/>
+    <child link="copter_arm_2"/>
+    <origin xyz="${base_radius*cos(3*pi/4)} ${base_radius*sin(3*pi/4)} ${arm_joint_zorigin}" rpy="${-pi/2} 0.0 ${-pi/4+pi/2}"/>
+  </joint>
+
+  <joint name="base_to_arm_3" type="fixed">
+    <parent link="copter_base"/>
+    <child link="copter_arm_3"/>
+    <origin xyz="${base_radius*cos(5*pi/4)} ${base_radius*sin(5*pi/4)} ${arm_joint_zorigin}" rpy="${-pi/2} 0.0 ${-pi/4+2*pi/2}"/>
+  </joint>
+
+  <joint name="base_to_arm_4" type="fixed">
+    <parent link="copter_base"/>
+    <child link="copter_arm_4"/>
+    <origin xyz="${base_radius*cos(7*pi/4)} ${base_radius*sin(7*pi/4)} ${arm_joint_zorigin}" rpy="${-pi/2} 0.0 ${-pi/4+3*pi/2}"/>
+  </joint>
+  <!-- #endregion -->
+
+  <!-- #region Prop Joints -->
+  <joint name="arm_1_to_prop_1" type="fixed">
+    <parent link="copter_arm_1"/>
+    <child link="copter_prop_1"/>
+    <origin xyz="${prop_joint_origin}" rpy="${prop_joint_rpy}"/>
+  </joint>
+
+  <joint name="arm_2_to_prop_2" type="fixed">
+    <parent link="copter_arm_2"/>
+    <child link="copter_prop_2"/>
+    <origin xyz="${prop_joint_origin}" rpy="${prop_joint_rpy}"/>
+  </joint>
+
+  <joint name="arm_3_to_prop_3" type="fixed">
+    <parent link="copter_arm_3"/>
+    <child link="copter_prop_3"/>
+    <origin xyz="${prop_joint_origin}" rpy="${prop_joint_rpy}"/>
+  </joint>
+
+  <joint name="arm_4_to_prop_4" type="fixed">
+    <parent link="copter_arm_4"/>
+    <child link="copter_prop_4"/>
+    <origin xyz="${prop_joint_origin}" rpy="${prop_joint_rpy}"/>
+  </joint>
+  <!-- #endregion -->
+
+  <!-- #region Prop Joints -->
+  <joint name="base_to_camera" type="fixed">
+    <parent link="copter_base"/>
+    <child link="copter_camera"/>
+    <origin xyz="${camera_joint_origin}" rpy="${camera_joint_rpy}"/>
+  </joint>
+  <!-- #endregion -->
+
+  <!-- #region Drake Commands -->
+  <drake:collision_filter_group name="self_collision_ignore">
+    <drake:member link="copter_base"/>
+    <drake:member link="copter_arm_1"/>
+    <drake:member link="copter_arm_2"/>
+    <drake:member link="copter_arm_3"/>
+    <drake:member link="copter_arm_4"/>
+    <drake:member link="copter_prop_1"/>
+    <drake:member link="copter_prop_2"/>
+    <drake:member link="copter_prop_3"/>
+    <drake:member link="copter_prop_4"/>
+    <drake:member link="copter_camera"/>
+    <drake:ignored_collision_filter_group name="self_collision_ignore"/>
+  </drake:collision_filter_group>
+  <!-- #endregion -->
+
+</robot>

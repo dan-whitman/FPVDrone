@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<robot name="target" xmlns:xacro="http://ros.org/wiki/xacro" xmlns:drake="http://mit.edu">
+
+  <!-- File Conventions
+    - mass (kg)
+    - length (m)
+    - inertia (kgm^2)
+    - 
+  -->
+
+  <!-- TO DO
+    - update dimensions
+    -
+  -->
+
+  <!-- #region Xacro Definitions -->
+  <xacro:property name="pi" value="3.141592653589793"/>
+  <xacro:property name="zero_origin" value = "0.0 0.0 0.0"/>
+  <xacro:property name="zero_rpy" value = "0.0 0.0 0.0"/> 
+
+  <xacro:property name="base_radius" value = "${0.5/2}"/>
+  <xacro:property name="base_length" value = "1.0"/>
+  <xacro:property name="base_origin" value = "0.0 0.0 ${base_length/2}"/>
+  <xacro:property name="base_mass" value = "50.0"/>
+  <xacro:property name="base_ixx" value = "${(base_mass*base_radius**2)/4 + (base_mass*base_length**2)/3}"/>
+  <xacro:property name="base_iyy" value = "${(base_mass*base_radius**2)/4 + (base_mass*base_length**2)/3}"/>
+  <xacro:property name="base_izz" value = "${(base_mass*base_radius**2)/2}"/>
+  <xacro:property name="base_ixy" value = "0.0"/>
+  <xacro:property name="base_ixz" value = "0.0"/>
+  <xacro:property name="base_iyz" value = "0.0"/>
+  <!-- #endregion -->
+
+  <!-- #region Material Definitions -->
+  <material name="gray">
+    <color rgba="0.5 0.5 0.5 1.0"/>
+  </material>
+  <material name="red">
+    <color rgba="0.8 0.0 0.0 1.0"/>
+  </material>
+  <material name="green">
+    <color rgba="0.0 0.8 0.0 1.0"/>
+  </material>
+  <material name="blue">
+    <color rgba="0.0 0.0 0.8 1.0"/>
+  </material>
+  <!-- #endregion -->
+
+  <!-- #region Target Base -->
+  <link name="target_base">
+    <inertial>
+      <origin xyz="${base_origin}" rpy="${zero_rpy}"/>
+      <mass value="${base_mass}"/>
+      <inertia ixx="${base_ixx}" ixy="${base_ixy}" ixz="${base_ixz}" iyy="${base_iyy}" iyz="${base_iyz}" izz="${base_izz}"/>
+    </inertial>
+    <visual>
+      <origin xyz="${base_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <cylinder radius="${base_radius}" length="${base_length}"/>
+      </geometry>
+      <material name="red"/>
+    </visual>
+    <collision>
+      <origin xyz="${base_origin}" rpy="${zero_rpy}"/>
+      <geometry>
+        <cylinder radius="${base_radius}" length="${base_length}"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- #endregion -->
+
+  <!-- #region Drake Commands -->
+  <drake:collision_filter_group name="self_collision_ignore">
+    <drake:member link="target_base"/>
+    <drake:ignored_collision_filter_group name="self_collision_ignore"/>
+  </drake:collision_filter_group>
+  <!-- #endregion -->
+
+</robot>
