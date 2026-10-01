@@ -11,21 +11,42 @@ from pydrake.visualization import AddDefaultVisualization, AddFrameTriadIllustra
 from pydrake.geometry import StartMeshcat, HalfSpace, ProximityProperties, AddContactMaterial
 
 ##### OTHER IMPORTS
+from pathlib import Path
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-# from PIL import Image
 import cv2
-from pathlib import Path
 
 ##### SELF-DEFINED IMPORTS
-from utils.XacroToURDF import XacroToURDF
+from utils.xacro import XacroToURDF
+from utils.camera import CameraMeasure
+from utils.figure import PlotData
+from utils.video import WriteVideoText, WriteVideoPoint
+
+##### USER INPUTS
+user_name = 'DAN'
+camera_width = 640 # (px)
+camera_height = 480 # (px)
+camera_fps = 15 # (fps)
+camera_fx = 500 # (px)
+camera_fy = 500 # (px)
+
+simulation_duration = 5.0 # (s)
+drone_initial_position = [0.0, 0.0, 0.5] # (m)
+target_initial_position = [1.0, 3.0, 0.0] # (m)
+
+vid_file_name = 'fpv_camera_' + user_name + '.avi'
+heading_file_name = 'camera_heading_' + user_name
+pixel_file_name = 'pixel_measurement_' + user_name
+data_file_name = 'model_data_' + user_name
 
 ##### PARSING ARGUMENTS
 argparser = argparse.ArgumentParser(description='Perception Midterm Quadcopter Model') # creating parser
 
-argparser.add_argument('--frames', type=int, required=False, default=1, help='(1) for model frames, (!=1) for no frames')
-argparser.add_argument('--video', type=int, required=False, default=1, help='(1) for simulation video, (!=1) for no video')
+argparser.add_argument('--frames', type=int, required=False, default=1, help='(1) for model frame visibility, (!=1) for no frames')
+argparser.add_argument('--video', type=int, required=False, default=1, help='(1) for simulation video output, (!=1) for no video')
+argparser.add_argument('--figures', type=int, required=False, default=1, help='(1) for figure outputs, (!=1) for no figures')
+argparser.add_argument('--data', type=int, required=False, default=1, help='(1) for data output, (!=1) for no data')
 
 args = argparser.parse_args() # getting the arguments
 
@@ -35,19 +56,10 @@ VID_DIR = Path('vids')
 FIG_DIR = Path('figs')
 DAT_DIR = Path('data')
 
+MOD_DIR.mkdir(parents=True, exist_ok=True) # create if doesn't exist
 VID_DIR.mkdir(parents=True, exist_ok=True) # create if doesn't exist
 FIG_DIR.mkdir(parents=True, exist_ok=True) # create if doesn't exist
-
-##### USER INPUTS
-user_name = 'DAN'
-camera_height = 480 # (px)
-camera_width = 480 # (px)
-camera_fps = 15 # (fps)
-simulation_duration = 5.0
-vid_file_name = 'fpv_camera_' + user_name + '.avi'
-heading_file_name = 'camera_heading_' + user_name
-orient_file_name = 'drone_orient_' + user_name
-data_file_name = 'drone_data_' + user_name
+DAT_DIR.mkdir(parents=True, exist_ok=True) # create if doesn't exist
 
 ##### DRAKE MODEL
 builder = DiagramBuilder() # initiating the builder
@@ -58,6 +70,10 @@ plant, scene_graph = AddMultibodyPlantSceneGraph(builder=builder, time_step=0.0)
 parser = Parser(plant) # initialize parser
 inspector = scene_graph.model_inspector() # initialize inspector
 
+# extracting constants
+gravity = plant.gravity_field().gravity_vector()
+g_mag = np.linalg.norm(gravity)
+
 # adding floor to world
 X_WG = RigidTransform.Identity() # identity transform
 
@@ -66,7 +82,7 @@ surface_friction = CoulombFriction(static_friction=0.7, dynamic_friction=0.5) # 
 AddContactMaterial(friction=surface_friction, properties=proximity_properties)
 
 plant.RegisterCollisionGeometry(
-    plant.world_body(), X_WG, HalfSpace(), 'ground_collision', proximity_properties
+    body=plant.world_body(), X_BG=X_WG, shape=HalfSpace(), name='ground_collision', properties=proximity_properties
 )
 
 # loading all models to parser
@@ -87,9 +103,9 @@ for i, copter_prop_body in enumerate(copter_prop_bodies):
     thrust_ratio = 1.0 # thrust ratio for prop
     moment_ratio = 0.1 * (-1)**i # moment ratio for prop (pos and negative to signify direction of prop spin)
 
-    X_BP = RigidTransform.Identity() # identity transform
+    X_DP = RigidTransform.Identity() # identity transform
 
-    copter_prop_info.append(PropellerInfo(copter_prop_body.index(), X_BP=X_BP, thrust_ratio=thrust_ratio, moment_ratio=moment_ratio)) # propeller for split
+    copter_prop_info.append(PropellerInfo(copter_prop_body.index(), X_BP=X_DP, thrust_ratio=thrust_ratio, moment_ratio=moment_ratio)) # propeller for arm
 
     if args.frames == 1: # if adding frames to visualization
         AddFrameTriadIllustration(
@@ -99,22 +115,20 @@ for i, copter_prop_body in enumerate(copter_prop_bodies):
 ##### CREATING CAMERA
 camera_body = plant.GetBodyByName('copter_camera')
 
-config = CameraConfig() # creating camera configuration
+# creating camera configuration
+config = CameraConfig()
 config.name = 'copter_camera'
 config.width = camera_width
 config.height = camera_height
 config.fps = camera_fps
+config.focal = CameraConfig.FocalLength(x=camera_fx, y=camera_fy)
 config.X_PB.base_frame = 'copter::copter_camera'
 config.rgb = True 
 config.depth = False
 config.label = False
 
 camera_info = CameraInfo(
-    config.width,
-    config.height,
-    config.focal_x(),
-    config.focal_y(),
-    *config.principal_point()
+    config.width, config.height, config.focal_x(), config.focal_y(), *config.principal_point()
 )
 
 ApplyCameraConfig(config=config, builder=builder, scene_graph=scene_graph)
@@ -146,10 +160,6 @@ AddDefaultVisualization(builder=builder, meshcat=meshcat)
 ##### FINALIZING BUILD
 diagram = builder.Build() # building final diagram
 
-##### CONFIGURATION
-gravity = plant.gravity_field().gravity_vector()
-g_mag = np.linalg.norm(gravity)
-
 ##### PLACING MODELS IN SCENE
 context = diagram.CreateDefaultContext() # creating numerical context
 plant_context = plant.GetMyMutableContextFromRoot(context)
@@ -159,12 +169,12 @@ target_instance = plant.GetModelInstanceByName('target') # target instance
 
 # placing the copter
 copter_body = plant.GetBodyByName('copter_base')
-X_WC = RigidTransform(RollPitchYaw(0.0, 0.0, 0.0), [0.0, 0.0, 1.0]) # target transform
-plant.SetFreeBodyPose(context=plant_context, body=copter_body, X_JpJc=X_WC)
+X_WD = RigidTransform(RollPitchYaw(0.0, 0.0, 0.0), drone_initial_position) # target transform
+plant.SetFreeBodyPose(context=plant_context, body=copter_body, X_JpJc=X_WD)
 
 # placing the target
 target_body = plant.GetBodyByName('target_base')
-X_WT = RigidTransform(RollPitchYaw(0.0, 0.0, 0.0), [1.0, 3.0, 0.0]) # target transform
+X_WT = RigidTransform(RollPitchYaw(0.0, 0.0, 0.0), target_initial_position) # target transform
 plant.SetFreeBodyPose(context=plant_context, body=target_body, X_JpJc=X_WT)
 
 ##### INITIAL CONDITIONS
@@ -199,14 +209,10 @@ frame_times = np.arange(0.0, simulation_duration, 1.0 / camera_fps)
 camera = diagram.GetSubsystemByName('rgbd_sensor_copter_camera') # getting camera
 
 # making video output
-if args.video == 1: # if making a video
+if args.video == 1: # if outputting video
     video = cv2.VideoWriter(
-        str(VID_DIR / vid_file_name),
-        cv2.VideoWriter_fourcc(*'MJPG'),
-        camera_fps,
-        (camera_width, camera_height),
+        filename=str(VID_DIR / vid_file_name), apiPreference=0, fourcc=cv2.VideoWriter_fourcc(*'MJPG'), fps=camera_fps, frameSize=(camera_width, camera_height)
     )
-    # print('Video writer opened:', video.isOpened())
 
 # data values
 times = []
@@ -217,6 +223,9 @@ drone_rpys = []
 drone_velocities = []
 drone_w_velocities = []
 
+us = []
+vs = []
+
 # step through simulation
 for t in frame_times:
     # t = frame / camera_fps # simulation time
@@ -224,27 +233,25 @@ for t in frame_times:
     camera_sim_context = camera.GetMyContextFromRoot(simulator.get_context()) # get camera context at t
     plant_sim_context = plant.GetMyContextFromRoot(simulator.get_context()) # get plant context at t
 
-    if args.video == 1: # if making a video
-        color_image = camera.color_image_output_port().Eval(camera_sim_context) # getting color image 
-        rgba = color_image.data # extracting data
-        rgb = rgba[:, :, :3] # removing apha channel
-
-        bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR) # converting to bgr for opencv
-        video.write(bgr) # add frame to video
-
     # finding data of interest
-    X_WC = camera.body_pose_in_world_output_port().Eval(camera_sim_context) # finding camera in world
+    X_WC = camera.body_pose_in_world_output_port().Eval(camera_sim_context) # finding camera pose
+    X_CW = X_WC.inverse() # finding world in camera
     R_WC = X_WC.rotation().matrix() # camera rotation (in world frame)
     heading_WC = R_WC @ np.array([0.0, 0.0, 1.0]) # extracting heading
 
-    X_WD = plant.EvalBodyPoseInWorld(plant_context, copter_body) # finding drone pose
-    V_WD = plant.EvalBodySpatialVelocityInWorld(plant_context, copter_body) # finding drone velocoties
+    X_WD = plant.EvalBodyPoseInWorld(plant_sim_context, copter_body) # finding drone pose
+    V_WD = plant.EvalBodySpatialVelocityInWorld(plant_sim_context, copter_body) # finding drone velocoties
     p_WD = X_WD.translation() # drone position (in world frame)
     R_WD = X_WD.rotation().matrix() # drone rotation (in world frame)
     rpy = RollPitchYaw(R_WD) # finding rpy
     rpy = [rpy.roll_angle(), rpy.pitch_angle(), rpy.yaw_angle()] # finding rpy
     v_WD = V_WD.translational() # drone linear velocity (in world frame)
     w_WD = V_WD.rotational() # drone rotational velocoty (in world frame)
+
+    X_WT = plant.EvalBodyPoseInWorld(plant_sim_context, target_body) # finding target pose
+    x_T = X_WT.translation() # target position (in world frame)
+
+    u, v = CameraMeasure(config, X_CW, x_T) # finding target measurement in camera
 
     # appending to data variables
     times.append(t)
@@ -255,7 +262,22 @@ for t in frame_times:
     drone_velocities.append(v_WD.copy())
     drone_w_velocities.append((R_WD.T @ np.array(w_WD)).copy())
 
-# convert data to numpy
+    us.append(u)
+    vs.append(v)
+
+    if args.video == 1: # if outputting video
+        image = camera.color_image_output_port().Eval(camera_sim_context) # getting color image 
+        rgba = image.data # extracting data
+        rgba = rgba.copy() # creating copy for manipulation
+
+        rgba = WriteVideoText(rgba=rgba, textflag=u == None, t=t) # add text to image
+        rgba = WriteVideoPoint(rgba=rgba, coords=(u, v)) # add point to image
+
+        rgb = rgba[:,:,:3] # removing apha channel
+        bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR) # converting to bgr for opencv
+        video.write(bgr) # add frame to video
+
+# convert data and parse
 times = np.array(times)
 camera_headings = np.array(camera_headings)
 
@@ -264,49 +286,37 @@ drone_rpys = np.array(drone_rpys)
 drone_velocities = np.array(drone_velocities)
 drone_w_velocities = np.array(drone_w_velocities)
 
+us = np.array(us)
+vs = np.array(vs)
+
 ##### OUTPUTTING DATA
 print(f'\n=====SAVING RESULTS=====')
 
+# ending simulation
+meshcat.StopRecording()
+meshcat.PublishRecording() # watch simulation
+
 # exporting video
-if args.video == 1: # if making a video
+if args.video == 1: # if outputting video
     video.release() # save video
     print('Video saved!')
 
 # exporting data
-np.savez(str(DAT_DIR / data_file_name), 
-    times=times, drone_positions=drone_positions, drone_rpys=drone_rpys, drone_velocities=drone_velocities, drone_w_velocities=drone_w_velocities
-)
-print('Data saved!')
+if args.data == 1: # if outputting data
+    np.savez(str(DAT_DIR / data_file_name), 
+        times=times, drone_positions=drone_positions, drone_rpys=drone_rpys, drone_velocities=drone_velocities, drone_w_velocities=drone_w_velocities
+    )
+    print('Data saved!')
 
 # plotting results
-plt.figure()
-plt.plot(times, camera_headings[:, 0], label='x')
-plt.plot(times, camera_headings[:, 1], label='y')
-plt.plot(times, camera_headings[:, 2], label='z')
-plt.xlabel(r'Time ($s$)')
-plt.ylabel('Camera heading component')
-plt.title('Camera Heading in World Frame')
-plt.legend()
-plt.grid()
-plt.savefig(str(FIG_DIR / heading_file_name), dpi=300, bbox_inches='tight')
-# plt.show()
+if args.figures == 1: # if outputting figures
+    plotdata = [times, camera_headings, us, vs, camera_width, camera_height] # combining data to pass to function (bad way to do this, rethink later)
+    figheadings, figtargetpixels = PlotData(plotdata=plotdata) # plotting figures
 
-plt.figure()
-plt.plot(times, drone_rpys[:, 0], label=r'$\phi$')
-plt.plot(times, drone_rpys[:, 1], label=r'$\theta$')
-plt.plot(times, drone_rpys[:, 2], label=r'$\psi$')
-plt.xlabel(r'Time ($s$)')
-plt.ylabel('Drone orientation component')
-plt.title('Drone Orientation in World Frame')
-plt.legend()
-plt.grid()
-plt.savefig(str(FIG_DIR / orient_file_name), dpi=300, bbox_inches='tight')
-# plt.show()
+    figheadings.savefig(str(FIG_DIR / heading_file_name), dpi=300, bbox_inches='tight')
+    figtargetpixels.savefig(str(FIG_DIR / pixel_file_name), dpi=300, bbox_inches='tight')
 
-print('Figures saved!')
-
-meshcat.StopRecording()
-meshcat.PublishRecording() # watch simulation
+    print('Figures saved!')
 
 ##### PRINTING INFO
 print(f'\n=====CAMERA INFO=====')
