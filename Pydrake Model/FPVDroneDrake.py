@@ -33,6 +33,7 @@ camera_fy = 500 # (px)
 
 simulation_duration = 5.0 # (s)
 drone_initial_position = [0.0, 0.0, 0.5] # (m)
+drone_initial_rpy = RollPitchYaw(0.0, 0.0, 0.0) # (rad)
 target_initial_position = [1.0, 3.0, 0.0] # (m)
 
 vid_file_name = 'fpv_camera_' + user_name + '.avi'
@@ -169,7 +170,7 @@ target_instance = plant.GetModelInstanceByName('target') # target instance
 
 # placing the copter
 copter_body = plant.GetBodyByName('copter_base')
-X_WD = RigidTransform(RollPitchYaw(0.0, 0.0, 0.0), drone_initial_position) # target transform
+X_WD = RigidTransform(drone_initial_rpy, drone_initial_position) # target transform
 plant.SetFreeBodyPose(context=plant_context, body=copter_body, X_JpJc=X_WD)
 
 # placing the target
