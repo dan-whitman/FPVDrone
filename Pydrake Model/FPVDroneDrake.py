@@ -6,6 +6,7 @@ from pydrake.systems.analysis import Simulator
 from pydrake.systems.sensors import CameraConfig, ApplyCameraConfig, CameraInfo
 from pydrake.multibody.parsing import Parser
 from pydrake.multibody.plant import AddMultibodyPlantSceneGraph, Propeller, PropellerInfo, CoulombFriction
+from pydrake.multibody.tree import ModelInstanceIndex
 from pydrake.math import RigidTransform, RollPitchYaw
 from pydrake.visualization import AddDefaultVisualization, AddFrameTriadIllustration
 from pydrake.geometry import StartMeshcat, HalfSpace, ProximityProperties, AddContactMaterial
@@ -42,7 +43,7 @@ pixel_file_name = 'pixel_measurement_' + user_name
 data_file_name = 'model_data_' + user_name
 
 ##### PARSING ARGUMENTS
-argparser = argparse.ArgumentParser(description='Perception Midterm Quadcopter Model') # creating parser
+argparser = argparse.ArgumentParser(description='Perception Midterm Quaddrone Model') # creating parser
 
 argparser.add_argument('--frames', type=int, required=False, default=1, help='(1) for model frame visibility, (!=1) for no frames')
 argparser.add_argument('--video', type=int, required=False, default=1, help='(1) for simulation video output, (!=1) for no video')
@@ -56,16 +57,19 @@ MOD_DIR = Path('models')
 VID_DIR = Path('vids')
 FIG_DIR = Path('figs')
 DAT_DIR = Path('data')
+UTI_DIR = Path('utils')
 
 MOD_DIR.mkdir(parents=True, exist_ok=True) # create if doesn't exist
 VID_DIR.mkdir(parents=True, exist_ok=True) # create if doesn't exist
 FIG_DIR.mkdir(parents=True, exist_ok=True) # create if doesn't exist
 DAT_DIR.mkdir(parents=True, exist_ok=True) # create if doesn't exist
+UTI_DIR.mkdir(parents=True, exist_ok=True) # create if doesn't exist
 
 ##### DRAKE MODEL
 builder = DiagramBuilder() # initiating the builder
 
 ##### MATHEMATICAL MODEL
+print(f'\n=====CREATING PLANT=====')
 plant, scene_graph = AddMultibodyPlantSceneGraph(builder=builder, time_step=0.0) # creating the plant and scene graph
 
 parser = Parser(plant) # initialize parser
@@ -87,43 +91,38 @@ plant.RegisterCollisionGeometry(
 )
 
 # loading all models to parser
-Quadcopter = XacroToURDF(str(MOD_DIR / 'FPVDrone.urdf.xacro'))
+Quaddrone = XacroToURDF(str(MOD_DIR / 'FPVDrone.urdf.xacro'))
 Target = XacroToURDF(str(MOD_DIR / 'Target.urdf.xacro'))
 
-parser.AddModelsFromString(Quadcopter, 'urdf')
+parser.AddModelsFromString(Quaddrone, 'urdf')
 parser.AddModelsFromString(Target, 'urdf')
 
 ##### CREATING PROPELLERS
 # finding prop bodies and frames
-copter_prop_names = ['copter_prop_1', 'copter_prop_2', 'copter_prop_3', 'copter_prop_4'] # link names
-copter_prop_bodies = [plant.GetBodyByName(copter_prop_name) for copter_prop_name in copter_prop_names] # model bodies
+drone_prop_names = ['drone_prop_1', 'drone_prop_2', 'drone_prop_3', 'drone_prop_4'] # link names
+drone_prop_bodies = [plant.GetBodyByName(drone_prop_name) for drone_prop_name in drone_prop_names] # model bodies
 
 # adding the propellers
-copter_prop_info = []
-for i, copter_prop_body in enumerate(copter_prop_bodies):
+drone_prop_info = []
+for i, drone_prop_body in enumerate(drone_prop_bodies):
     thrust_ratio = 1.0 # thrust ratio for prop
     moment_ratio = 0.1 * (-1)**i # moment ratio for prop (pos and negative to signify direction of prop spin)
 
     X_DP = RigidTransform.Identity() # identity transform
 
-    copter_prop_info.append(PropellerInfo(copter_prop_body.index(), X_BP=X_DP, thrust_ratio=thrust_ratio, moment_ratio=moment_ratio)) # propeller for arm
-
-    if args.frames == 1: # if adding frames to visualization
-        AddFrameTriadIllustration(
-            scene_graph=scene_graph, plant=plant, body=copter_prop_body, length=0.15, radius=0.005
-        )
+    drone_prop_info.append(PropellerInfo(drone_prop_body.index(), X_BP=X_DP, thrust_ratio=thrust_ratio, moment_ratio=moment_ratio)) # propeller for arm
 
 ##### CREATING CAMERA
-camera_body = plant.GetBodyByName('copter_camera')
+camera_body = plant.GetBodyByName('drone_camera')
 
 # creating camera configuration
 config = CameraConfig()
-config.name = 'copter_camera'
+config.name = 'drone_camera'
 config.width = camera_width
 config.height = camera_height
 config.fps = camera_fps
 config.focal = CameraConfig.FocalLength(x=camera_fx, y=camera_fy)
-config.X_PB.base_frame = 'copter::copter_camera'
+config.X_PB.base_frame = 'drone::drone_camera'
 config.rgb = True 
 config.depth = False
 config.label = False
@@ -134,16 +133,27 @@ camera_info = CameraInfo(
 
 ApplyCameraConfig(config=config, builder=builder, scene_graph=scene_graph)
 
-if args.frames == 1: # if adding frames to visualization
-    AddFrameTriadIllustration(
-        scene_graph=scene_graph, plant=plant, body=camera_body, length=0.15, radius=0.005
-    )
+##### ADDING VISUAL FRAMES
+if args.frames: # if adding visual frames
+    print(f'\n=====ADDING FRAMES=====')
+    for i in range(plant.num_model_instances()): # for each model
+        model_instance = ModelInstanceIndex(i) # get the model
+        body_indices = plant.GetBodyIndices(model_instance) # get each body
+
+        for body_index in body_indices: # for each body
+            body = plant.get_body(body_index) 
+
+            # add frame
+            AddFrameTriadIllustration(
+                scene_graph=scene_graph, plant=plant, body=body, length=0.15, radius=0.005
+            )
 
 ##### BUILDING MODEL
+print(f'\n=====BUILDING MODEL=====')
 plant.Finalize() # finalize the plant
 
 # connecting props to model
-propellers = builder.AddSystem(Propeller(copter_prop_info)) # creating the propellers
+propellers = builder.AddSystem(Propeller(drone_prop_info)) # creating the propellers
 
 builder.Connect(plant.get_body_poses_output_port(), propellers.get_body_poses_input_port())
 builder.Connect(propellers.get_spatial_forces_output_port(), plant.get_applied_spatial_force_input_port())
@@ -165,13 +175,13 @@ diagram = builder.Build() # building final diagram
 context = diagram.CreateDefaultContext() # creating numerical context
 plant_context = plant.GetMyMutableContextFromRoot(context)
 
-copter_instance = plant.GetModelInstanceByName('copter') # copter instance
+drone_instance = plant.GetModelInstanceByName('drone') # drone instance
 target_instance = plant.GetModelInstanceByName('target') # target instance
 
-# placing the copter
-copter_body = plant.GetBodyByName('copter_base')
+# placing the drone
+drone_body = plant.GetBodyByName('drone_base')
 X_WD = RigidTransform(drone_initial_rpy, drone_initial_position) # target transform
-plant.SetFreeBodyPose(context=plant_context, body=copter_body, X_JpJc=X_WD)
+plant.SetFreeBodyPose(context=plant_context, body=drone_body, X_JpJc=X_WD)
 
 # placing the target
 target_body = plant.GetBodyByName('target_base')
@@ -184,8 +194,8 @@ v_num = plant.num_velocities() # number of velocities
 u_num = propellers.get_command_input_port().size() # number of control inputs
 
 # defining initial propeller thrusts
-copter_mass = plant.CalcTotalMass(plant_context, [copter_instance])
-prop_thrust = 1.00 * g_mag * copter_mass / u_num # splitting thurst over all props
+drone_mass = plant.CalcTotalMass(plant_context, [drone_instance])
+prop_thrust = 1.00 * g_mag * drone_mass / u_num # splitting thurst over all props
 u_zero = prop_thrust * np.ones(u_num) # setting control
 
 u_zero[0] = 0.998 * u_zero[0]
@@ -200,14 +210,14 @@ diagram_input_port.FixValue(context, u_zero)
 print(f'\n=====BEGINNING SIMULATION=====')
 meshcat.StartRecording(set_visualizations_while_recording=True) # begin recording
 
-simulator = Simulator(system=diagram, context=context) # starting simulation (for visualization)
+simulator = Simulator(system=diagram, context=context)
 simulator.Initialize()
 simulator.set_target_realtime_rate(1.0)
 
 frame_times = np.arange(0.0, simulation_duration, 1.0 / camera_fps)
 # num_frames = len(frame_times)
 
-camera = diagram.GetSubsystemByName('rgbd_sensor_copter_camera') # getting camera
+camera = diagram.GetSubsystemByName('rgbd_sensor_drone_camera') # getting camera
 
 # making video output
 if args.video == 1: # if outputting video
@@ -240,8 +250,8 @@ for t in frame_times:
     R_WC = X_WC.rotation().matrix() # camera rotation (in world frame)
     heading_WC = R_WC @ np.array([0.0, 0.0, 1.0]) # extracting heading
 
-    X_WD = plant.EvalBodyPoseInWorld(plant_sim_context, copter_body) # finding drone pose
-    V_WD = plant.EvalBodySpatialVelocityInWorld(plant_sim_context, copter_body) # finding drone velocoties
+    X_WD = plant.EvalBodyPoseInWorld(plant_sim_context, drone_body) # finding drone pose
+    V_WD = plant.EvalBodySpatialVelocityInWorld(plant_sim_context, drone_body) # finding drone velocoties
     p_WD = X_WD.translation() # drone position (in world frame)
     R_WD = X_WD.rotation().matrix() # drone rotation (in world frame)
     rpy = RollPitchYaw(R_WD) # finding rpy
