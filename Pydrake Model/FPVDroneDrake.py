@@ -33,16 +33,16 @@ from utils.figure import PlotData
 from utils.video import WriteVideoText, WriteVideoPoint
 
 ##### USER INPUTS
-user_name = 'DAN'
+user_name = 'TER'
 camera_width = 640 # (px)
 camera_height = 480 # (px)
 camera_fps = 15 # (fps)
-camera_fx = 500 # (px)
-camera_fy = 500 # (px)
+camera_fx = 450 # (px)
+camera_fy = 450 # (px)
 
 simulation_duration = 5.0 # (s)
 drone_initial_position = [0.0, 0.0, 0.5] # (m)
-drone_initial_rpy = RollPitchYaw(0.0, 0.0, 0.0) # (rad)
+drone_initial_rpy = RollPitchYaw(0.0, 0.0, np.pi/4) # (rad)
 target_initial_position = [1.0, 3.0, 0.0] # (m)
 
 vid_file_name = 'fpv_camera_' + user_name + '.avi'
