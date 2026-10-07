@@ -1,5 +1,7 @@
+##### PYDRAKE IMPORTS
 from pydrake.systems.sensors import CameraConfig
 
+##### OTHER IMPORTS
 import numpy as np
 
 ##### CAMERA MODEL FUNCTION (inputs camera config, camera transform, and target state and returns measured pixel output)

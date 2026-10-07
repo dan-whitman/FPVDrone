@@ -1,3 +1,11 @@
+##### CONFIG
+# must run the following in terminal to establish pydrake environment variables:
+'''
+export PATH="/opt/drake/bin${PATH:+:${PATH}}"
+export PYTHONPATH="/opt/drake/lib/python$(python3 -c 'import sys; print("{0}.{1}".format(*sys.version_info))')/site-packages${PYTHONPATH:+:${PYTHONPATH}}"
+'''
+# will work out an automatica way to establish this later
+
 ##### PYDRAKE IMPORTS
 # from pydrake.all import 
 
@@ -300,12 +308,12 @@ drone_w_velocities = np.array(drone_w_velocities)
 us = np.array(us)
 vs = np.array(vs)
 
-##### OUTPUTTING DATA
-print(f'\n=====SAVING RESULTS=====')
-
 # ending simulation
 meshcat.StopRecording()
 meshcat.PublishRecording() # watch simulation
+
+##### OUTPUTTING DATA
+print(f'\n=====SAVING RESULTS=====')
 
 # exporting video
 if args.video == 1: # if outputting video
@@ -337,6 +345,5 @@ print('ux:', config.principal_point()[0])
 print('uy:', config.principal_point()[1])
 print('Horizontal FOV:', np.degrees(camera_info.fov_x()), 'deg')
 print('Vertical FOV:', np.degrees(camera_info.fov_y()), 'deg')
-print('')
 
-input('Keeping Meshcat alive!')
+input(f'\nKeeping Meshcat alive!')
