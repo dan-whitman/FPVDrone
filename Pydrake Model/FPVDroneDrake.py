@@ -1,10 +1,9 @@
 ##### CONFIG
-# must run the following in terminal to establish pydrake environment variables:
+# must run the following in terminal OR include in ~/.bashrc to establish pydrake environment variables:
 '''
 export PATH="/opt/drake/bin${PATH:+:${PATH}}"
 export PYTHONPATH="/opt/drake/lib/python$(python3 -c 'import sys; print("{0}.{1}".format(*sys.version_info))')/site-packages${PYTHONPATH:+:${PYTHONPATH}}"
 '''
-# will work out an automatica way to establish this later
 
 ##### PYDRAKE IMPORTS
 # from pydrake.all import 
@@ -23,7 +22,6 @@ from pydrake.geometry import StartMeshcat, HalfSpace, ProximityProperties, AddCo
 from pathlib import Path
 import argparse
 import numpy as np
-import matplotlib.pyplot as plt
 import cv2
 
 ##### SELF-DEFINED IMPORTS
@@ -33,16 +31,16 @@ from utils.figure import PlotData
 from utils.video import WriteVideoText, WriteVideoPoint
 
 ##### USER INPUTS
-user_name = 'TER'
+user_name = 'DAN'
 camera_width = 640 # (px)
 camera_height = 480 # (px)
 camera_fps = 15 # (fps)
-camera_fx = 450 # (px)
-camera_fy = 450 # (px)
+camera_fx = 500 # (px)
+camera_fy = 500 # (px)
 
 simulation_duration = 5.0 # (s)
 drone_initial_position = [0.0, 0.0, 0.5] # (m)
-drone_initial_rpy = RollPitchYaw(0.0, 0.0, np.pi/4) # (rad)
+drone_initial_rpy = RollPitchYaw(0.0, 0.0, 0.0) # (rad)
 target_initial_position = [1.0, 3.0, 0.0] # (m)
 
 vid_file_name = 'fpv_camera_' + user_name + '.avi'
