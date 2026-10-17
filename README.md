@@ -16,6 +16,7 @@ export PYTHONPATH="/opt/drake/lib/python$(python3 -c 'import sys; print("{0}.{1}
 You must *also* install ```xacro``` so that the script an parse the ```.xacro.urdf``` file. This is *not* shown in the ```requirements.txt``` file. To do this, in terminal (if using ```pipx```):
 ```bash
 pipx install xacro
+pipx ensurepath
 ```
 
 - Note: this configuration is for standard Ubuntu-26.04 WSL installation/implementation. It may differ for other distros.
